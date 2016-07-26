@@ -32,6 +32,7 @@ start_phase(websocket, _, _) ->
     ok;
 
 start_phase(dbus, _, _) ->
+		service_edge_rpc:start_dbus(),
 		ok;
 
 start_phase(announce, _, _) ->

@@ -28,7 +28,8 @@
 	 handle_local_timeout/3]).
 
 -export([start_json_server/0,
-	 start_websocket/0]).
+	 start_websocket/0,
+	 start_dbus/0]).
 
 %% exo_socket authentication callbacks
 -export([authenticate/3,
@@ -179,6 +180,8 @@ start_websocket() ->
 	    end
     end.
 
+start_dbus() ->
+	ok.
 
 
 
