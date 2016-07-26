@@ -181,8 +181,35 @@ start_websocket() ->
     end.
 
 start_dbus() ->
-	ok.
+	case rvi_common:get_module_config(service_edge,
+		service_edge_rpc,
+		dbus_namespace,
+		not_found,
+		rvi_common:get_component_specification()) of
+  {ok, not_found} ->
+		case dbus_available(DBusNamespace) of
+			{ok, Pid} ->
+				ok;
+			_ ->
+				error
+		end;
 
+	{ok, DBusNamespace} ->
+		case erlang_dbus:start(DBusNamespace) of
+			{ok, Pid} ->
+				ok;
+			{error,Error} ->
+				case Error of
+					{already_started, Pid} ->
+						{ok, Pid};
+					_ ->
+						error
+				end
+			_ ->
+				ok
+		end,
+		ok
+	end.
 
 
 %% Invoked by service_discovery to announce service availability
