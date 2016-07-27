@@ -196,17 +196,15 @@ start_dbus() ->
 
 	{ok, DBusNamespace} ->
 		case erlang_dbus:start(DBusNamespace) of
-			{ok, Pid} ->
+			{ok, _} ->
 				ok;
 			{error,Error} ->
 				case Error of
-					{already_started, Pid} ->
-						{ok, Pid};
+					{already_started, _} ->
+						ok;
 					_ ->
 						error
 				end
-			_ ->
-				ok
 		end,
 		ok
 	end.
