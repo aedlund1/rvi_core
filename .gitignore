@@ -5,6 +5,7 @@ logs
 *.beam
 *.plt
 *.pyc
+*.swp
 *~
 erl_crash.dump
 rel/example_project
