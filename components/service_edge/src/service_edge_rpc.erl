@@ -181,32 +181,24 @@ start_websocket() ->
     end.
 
 start_dbus() ->
+    %% 
+    %% Get namespace on running DBus
+    %%
 	case rvi_common:get_module_config(service_edge,
 		service_edge_rpc,
 		dbus_namespace,
 		not_found,
 		rvi_common:get_component_specification()) of
-  {ok, not_found} ->
-		case dbus_available(DBusNamespace) of
-			{ok, Pid} ->
-				ok;
-			_ ->
-				error
-		end;
-
+    %% Not configured, not starting
+    {ok, not_found} ->
+        ok;
 	{ok, DBusNamespace} ->
 		case erlang_dbus:start(DBusNamespace) of
 			{ok, _} ->
 				ok;
-			{error,Error} ->
-				case Error of
-					{already_started, _} ->
-						ok;
-					_ ->
-						error
-				end
-		end,
-		ok
+            {already_started, _} ->
+                ok
+		end
 	end.
 
 
