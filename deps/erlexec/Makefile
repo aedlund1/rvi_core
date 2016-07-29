@@ -5,25 +5,32 @@ PROJECT = $(notdir $(PWD))
 TARBALL = $(PROJECT)-$(VSN)
 
 DIALYZER = dialyzer
-REBAR = rebar
+REBAR   := $(shell which rebar3 2>/dev/null)
+REBAR   := $(if $(REBAR),$(REBAR),$(which rebar 2>/dev/null))
+
+ifeq (,$(REBAR))
+$(error rebar or rebar3 not found!)
+endif
 
 .PHONY : all clean test docs doc clean-docs github-docs dialyzer
 
 all:
 	@$(REBAR) compile
 
-clean:
-	@$(REBAR) clean
-	@rm -fr ebin doc
+clean path:
+	@$(REBAR) $@
 
 docs: doc ebin clean-docs
-	@$(REBAR) doc skip_deps=true
+	@$(REBAR) edoc skip_deps=true
 
 doc ebin:
 	mkdir -p $@
 
 test:
 	@$(REBAR) eunit
+
+publish:
+	$(REBAR) hex publish
 
 clean-docs:
 	rm -f doc/*.{css,html,png} doc/edoc-info
@@ -34,6 +41,7 @@ github-docs:
 	else \
 		git checkout -b gh-pages; \
 	fi
+	rm -f rebar.lock
 	git checkout master -- src include
 	git checkout master -- Makefile rebar.*
 	make docs
@@ -57,7 +65,7 @@ tar:
     tar zcf $(TARBALL).tgz --exclude="core*" --exclude="erl_crash.dump" \
 		--exclude="*.tgz" --exclude="*.swp" --exclude="c_src" \
 		--exclude="Makefile" --exclude="rebar.*" --exclude="*.mk" \
-		--exclude="*.o" --exclude=".git*" $(PROJECT) && \
+		--exclude="*.o" --exclude="_build" --exclude=".git*" $(PROJECT) && \
 		mv $(TARBALL).tgz $(PROJECT)/ && echo "Created $(TARBALL).tgz"
 
 dialyzer: build.plt
