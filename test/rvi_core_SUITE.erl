@@ -37,6 +37,7 @@
     t_start_tls_backend_noverify/1,
     t_start_tls_sample_noverify/1,
     t_register_lock_service/1,
+    t_start_dbus_node/1,
     t_register_sota_service/1,
     t_call_lock_service/1,
     t_call_sota_service/1,
@@ -90,6 +91,7 @@ groups() ->
        t_start_basic_backend,
        t_start_basic_sample,
        t_register_lock_service,
+       t_start_dbus_node,
        t_register_sota_service,
        t_call_lock_service,
        t_call_sota_service,
@@ -312,6 +314,11 @@ t_register_lock_service(_Config) ->
 	   "/rvi_service.py -n ", service_edge("sample"), " lock"]),
     save({service, lock}, Pid),
     timer:sleep(2000).
+
+t_start_dbus_node(_Config) ->
+    {ok, Pid} = dbus_erlang:start(test),
+    save({dbus_server,test}, Pid),
+    Pid.
 
 t_register_sota_service(_Config) ->
     Pid = start_json_rpc_server(9987),
