@@ -38,6 +38,7 @@
     t_start_tls_sample_noverify/1,
     t_register_lock_service/1,
     t_start_dbus_node/1,
+    t_pass_dbus_msg/1,
     t_register_sota_service/1,
     t_call_lock_service/1,
     t_call_sota_service/1,
@@ -316,9 +317,19 @@ t_register_lock_service(_Config) ->
     timer:sleep(2000).
 
 t_start_dbus_node(_Config) ->
+    dbus:setup(),
     {ok, Pid} = dbus_erlang:start(test),
     save({dbus_server,test}, Pid),
     Pid.
+
+t_pass_dbus_msg(_Config) ->
+    C = dbus_connection:open(session),
+    dbus_connection:call(C,
+                         [{interface,"org.erlang.Rvi.test"},
+                          {member,"Call"},
+                          {path,"/"}],
+                         "sE",
+                         ["service_edge_rcp", "get_available_services"]).
 
 t_register_sota_service(_Config) ->
     Pid = start_json_rpc_server(9987),

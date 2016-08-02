@@ -1,6 +1,7 @@
 ebin
 logs
 .eunit
+*.so
 *.o
 *.beam
 *.plt
