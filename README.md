@@ -215,3 +215,5 @@ system, and also to communicate with services connected to it. The
 ubiquity of JSON-RPC, and its close relationship with Java/JavaScript,
 provides maximum of freedom of technology choices when new components,
 services, and applications are developed.
+
+## Next ##
