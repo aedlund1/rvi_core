@@ -1,0 +1,12 @@
+{application, dbus,
+ [
+  {description, "DBus for Erlang"},
+  {vsn, git},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { dbus_app, []}},
+  {env, []}
+ ]}.

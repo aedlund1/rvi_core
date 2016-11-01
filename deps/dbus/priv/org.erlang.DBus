@@ -1,0 +1,17 @@
+%% -*- erlang -*-
+%%   Simple DBUS erlang distribution interface
+%%
+
+%% server/module/function are atom names
+%% variant 
+{interface, "org.erlang.DBus",
+ [
+  {method, "Call", [{string,"name"},{term,"request"}], 
+   [{term,reply}]},
+
+  {signal, "Cast", [{string,"name"},{term,"message"}]},
+
+  {method, "Rpc", [{string,"mod"},{string,"func"},{{array,term},"args"}], 
+   [{term,"reply"}]}
+   
+ ]}.
