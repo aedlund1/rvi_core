@@ -1,5 +1,3 @@
-[![Build Status](https://travis-ci.org/aedlund1/rvi_core.svg?branch=aedlund1)](https://travis-ci.org/aedlund1/rvi_core)
-
 Copyright (C) 2014-2016 Jaguar Land Rover
 
 This document is licensed under Creative Commons
@@ -217,5 +215,3 @@ system, and also to communicate with services connected to it. The
 ubiquity of JSON-RPC, and its close relationship with Java/JavaScript,
 provides maximum of freedom of technology choices when new components,
 services, and applications are developed.
-
-## Next ##

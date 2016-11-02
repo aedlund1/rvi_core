@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 #
 # Copyright (C) 2015, Jaguar Land Rover

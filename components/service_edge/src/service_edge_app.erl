@@ -2,7 +2,7 @@
 %% Copyright (C) 2014, Jaguar Land Rover
 %%
 %% This program is licensed under the terms and conditions of the
-%% Mozilla Public License, version 2.0.  The full text of the
+%% Mozilla Public License, version 2.0.  The full text of the 
 %% Mozilla Public License is at https://www.mozilla.org/MPL/2.0/
 %%
 
@@ -30,10 +30,6 @@ start_phase(json_rpc, _, _) ->
 start_phase(websocket, _, _) ->
     service_edge_rpc:start_websocket(),
     ok;
-
-start_phase(dbus, _, _) ->
-		service_edge_rpc:start_dbus(),
-		ok;
 
 start_phase(announce, _, _) ->
     rvi_common:announce({n, l, service_edge}).

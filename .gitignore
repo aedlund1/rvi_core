@@ -1,12 +1,10 @@
 ebin
 logs
 .eunit
-*.so
 *.o
 *.beam
 *.plt
 *.pyc
-*.swp
 *~
 erl_crash.dump
 rel/example_project
@@ -15,4 +13,3 @@ rel/example_project
 scripts/setup_gen
 scripts/author
 components/authorize/author
-rvipy2

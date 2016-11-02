@@ -28,8 +28,7 @@
 	 handle_local_timeout/3]).
 
 -export([start_json_server/0,
-	 start_websocket/0,
-	 start_dbus/0]).
+	 start_websocket/0]).
 
 %% exo_socket authentication callbacks
 -export([authenticate/3,
@@ -180,26 +179,7 @@ start_websocket() ->
 	    end
     end.
 
-start_dbus() ->
-    %% 
-    %% Get namespace on running DBus
-    %%
-	case rvi_common:get_module_config(service_edge,
-		service_edge_rpc,
-		dbus_namespace,
-		not_found,
-		rvi_common:get_component_specification()) of
-    %% Not configured, not starting
-    {ok, not_found} ->
-        ok;
-	{ok, DBusNamespace} ->
-		case erlang_dbus:start(DBusNamespace) of
-			{ok, _} ->
-				ok;
-            {already_started, _} ->
-                ok
-		end
-	end.
+
 
 
 %% Invoked by service_discovery to announce service availability
