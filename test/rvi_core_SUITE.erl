@@ -174,11 +174,11 @@ init_per_suite(Config) ->
 		  receive stop -> ok end
 	  end),
     ok = application:start(gproc),
-    ok = application:start(erlexec),
+    ok = application:start(exec),
     Config.
 
 end_per_suite(_Config) ->
-    application:stop(erlexec),
+    application:stop(exec),
     application:stop(gproc),
     exit(whereis(?DATA), kill),
     ok.
