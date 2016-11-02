@@ -126,6 +126,7 @@ static int  alarm_max_time  = FINALIZE_DEADLINE_SEC + 2;
 static int  debug           = 0;
 static bool oktojump        = false;
 static int  terminated      = 0;    // indicates that we got a SIGINT / SIGTERM event
+static bool superuser       = false;
 static bool pipe_valid      = true;
 static int  max_fds;
 static int  dev_null;
@@ -155,7 +156,6 @@ typedef std::map<pid_t, exit_status_t>      ExitedChildrenT;
 MapChildrenT    children;       // Map containing all managed processes started by this port program.
 MapKillPidT     transient_pids; // Map of pids of custom kill commands.
 ExitedChildrenT exited_children;// Set of processed SIGCHLD events
-pid_t           self_pid;
 
 #define SIGCHLD_MAX_SIZE 4096
 
@@ -206,14 +206,13 @@ pid_t   start_child(CmdOptions& op, std::string& err);
 int     kill_child(pid_t pid, int sig, int transId, bool notify=true);
 int     check_children(const TimeVal& now, int& isTerminated, bool notify = true);
 bool    process_pid_input(CmdInfo& ci);
-void    close_stdin(CmdInfo& ci);
 void    process_pid_output(CmdInfo& ci, int maxsize = 4096);
 void    stop_child(pid_t pid, int transId, const TimeVal& now);
 int     stop_child(CmdInfo& ci, int transId, const TimeVal& now, bool notify = true);
 void    erase_child(MapChildrenT::iterator& it);
 
 int     process_command();
-void    initialize(int userid, bool use_alt_fds, bool run_as_root);
+void    initialize(int userid, bool use_alt_fds);
 int     finalize();
 int     set_nonblock_flag(pid_t pid, int fd, bool value);
 int     erl_exec_kill(pid_t pid, int signal);
@@ -451,7 +450,7 @@ void check_child(pid_t pid, int signal = -1)
     int status = 0;
     pid_t ret;
 
-    if (pid == self_pid)    // Safety check. Never kill itself
+    if (pid == getpid())    // Safety check. Never kill itself
         return;
 
     if (exited_children.find(pid) != exited_children.end())
@@ -546,10 +545,9 @@ int set_nice(pid_t pid,int nice, std::string& error)
 void usage(char* progname) {
     fprintf(stderr,
         "Usage:\n"
-        "   %s [-n] [-root] [-alarm N] [-debug [Level]] [-user User]\n"
+        "   %s [-n] [-alarm N] [-debug [Level]] [-user User]\n"
         "Options:\n"
         "   -n              - Use marshaling file descriptors 3&4 instead of default 0&1.\n"
-        "   -root           - Allow running child processes as root.\n"
         "   -alarm N        - Allow up to <N> seconds to live after receiving SIGTERM/SIGINT (default %d)\n"
         "   -debug [Level]  - Turn on debug mode (default Level: 1)\n"
         "   -user User      - If started by root, run as User\n"
@@ -571,7 +569,6 @@ int main(int argc, char* argv[])
     struct sigaction sact, sterm;
     int userid = 0;
     bool use_alt_fds = false;
-    bool run_as_root = false;
 
     sterm.sa_handler = gotsignal;
     sigemptyset(&sterm.sa_mask);
@@ -581,8 +578,6 @@ int main(int argc, char* argv[])
     sigaction(SIGTERM, &sterm, NULL);
     sigaction(SIGHUP,  &sterm, NULL);
     sigaction(SIGPIPE, &sterm, NULL);
-
-    self_pid = getpid();
 
     sact.sa_handler = NULL;
     sact.sa_sigaction = gotsigchild;
@@ -614,13 +609,11 @@ int main(int argc, char* argv[])
                     exit(3);
                 }
                 userid = pw->pw_uid;
-            } else if (strcmp(argv[res], "-root") == 0) {
-                run_as_root = true;
             }
         }
     }
 
-    initialize(userid, use_alt_fds, run_as_root);
+    initialize(userid, use_alt_fds);
 
     while (!terminated) {
 
@@ -749,22 +742,14 @@ int process_command()
         case MANAGE: {
             // {manage, Cmd::string(), Options::list()}
             CmdOptions po;
-            long       pid;
-            pid_t      realpid;
-            int        ret;
+            long pid;
+            pid_t realpid;
 
-            if (arity != 3 || (eis.decodeInt(pid)) < 0 || po.ei_decode(eis) < 0 || pid <= 0) {
+            if (arity != 3 || (eis.decodeInt(pid)) < 0 || po.ei_decode(eis) < 0) {
                 send_error_str(transId, true, "badarg");
                 return 0;
             }
             realpid = pid;
-
-            while ((ret = kill(pid, 0)) < 0 && errno == EINTR);
-
-            if (ret < 0) {
-                send_error_str(transId, true, "not_found");
-                return 0;
-            }
 
             CmdInfo ci(true, po.kill_cmd(), realpid, po.success_exit_code(), po.kill_group());
             ci.kill_timeout = po.kill_timeout();
@@ -823,7 +808,7 @@ int process_command()
             } else if (pid < 0) {
                 send_error_str(transId, false, "Not allowed to send signal to all processes");
                 break;
-            } else if (children.find(pid) == children.end()) {
+            } else if (superuser && children.find(pid) == children.end()) {
                 send_error_str(transId, false, "Cannot kill a pid not managed by this application");
                 break;
             }
@@ -843,12 +828,7 @@ int process_command()
             // {stdin, OsPid::integer(), Data::binary()}
             long pid;
             std::string data;
-            std::string s;
-            bool eof = false;
-            if (arity != 3 || eis.decodeInt(pid) < 0 ||
-                    (eis.decodeBinary(data) < 0 &&
-                     (eis.decodeAtom(s) < 0 || !(eof = (s == "eof")))
-                     )) {
+            if (arity != 3 || eis.decodeInt(pid) < 0 || eis.decodeBinary(data) < 0) {
                 send_error_str(transId, true, "badarg");
                 break;
             }
@@ -860,12 +840,6 @@ int process_command()
                         data.size(), pid);
                 break;
             }
-
-            if (eof) {
-                close_stdin(it->second);
-                break;
-            }
-
             it->second.stdin_queue.push_front(data);
             process_pid_input(it->second);
             break;
@@ -874,14 +848,14 @@ int process_command()
     return 0;
 }
 
-void initialize(int userid, bool use_alt_fds, bool run_as_root)
+void initialize(int userid, bool use_alt_fds)
 {
     // If we are root, switch to non-root user and set capabilities
     // to be able to adjust niceness and run commands as other users.
-    // unless run_as_root is set
-    if (getuid() == 0 && !run_as_root) {
+    if (getuid() == 0) {
+        superuser = true;
         if (userid == 0) {
-            fprintf(stderr, "When running as root, \"-user User\" or \"-root\" option must be provided!\r\n");
+            fprintf(stderr, "When running as root, \"-user User\" option must be provided!\r\n");
             exit(4);
         }
 
@@ -1502,7 +1476,13 @@ bool process_pid_input(CmdInfo& ci)
         } else if (n < 0 && errno == EAGAIN) {
             break;
         } else if (n <= 0) {
-            close_stdin(ci);
+            if (debug)
+                fprintf(stderr, "Eof writing pid %d's stdin, closing fd=%d: %s\r\n",
+                    ci.cmd_pid, fd, strerror(errno));
+            ci.stdin_wr_pos = 0;
+            close(fd);
+            fd = REDIRECT_CLOSE;
+            ci.stdin_queue.clear();
             return true;
         }
 
@@ -1511,21 +1491,6 @@ bool process_pid_input(CmdInfo& ci)
     }
 
     return true;
-}
-
-void close_stdin(CmdInfo& ci)
-{
-    int& fd = ci.stream_fd[STDIN_FILENO];
-
-    if (fd < 0) return;
-    if (debug)
-        fprintf(stderr, "Eof writing pid %d's stdin, closing fd=%d: %s\r\n",
-                ci.cmd_pid, fd, strerror(errno));
-    ci.stdin_wr_pos = 0;
-    close(fd);
-    fd = REDIRECT_CLOSE;
-    ci.stdin_queue.clear();
-    return;
 }
 
 void process_pid_output(CmdInfo& ci, int maxsize)

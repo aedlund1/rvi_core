@@ -65,15 +65,13 @@
     trans       = queue:new(),  % Queue of outstanding transactions sent to port
     limit_users = [],           % Restricted list of users allowed to run commands
     registry,                   % Pids to notify when an OsPid exits
-    debug       = false,
-    root        = false
+    debug       = false
 }).
 
 -type exec_options() :: [exec_option()].
 -type exec_option()  ::
       debug
     | {debug, integer()}
-    | root
     | verbose
     | {args, [string(), ...]}
     | {alarm, non_neg_integer()}
@@ -81,14 +79,11 @@
     | {limit_users, [string(), ...]}
     | {portexe, string()}
     | {env, [{string(), string()}, ...]}.
-%% Options passed to the exec process at startup. They can be specified in the
-%% `sys.config' file for the `erlexec' application to customize application
-%% startup.
+%% Options passed to the exec process at startup.
 %% <dl>
 %% <dt>debug</dt><dd>Same as {debug, 1}</dd>
 %% <dt>{debug, Level}</dt><dd>Enable port-programs debug trace at `Level'.</dd>
 %% <dt>verbose</dt><dd>Enable verbose prints of the Erlang process.</dd>
-%% <dt>root</dt><dd>Allow running child processes as root.</dd>
 %% <dt>{args, Args}</dt><dd>Append `Args' to the port command.</dd>
 %% <dt>{alarm, Secs}</dt>
 %%     <dd>Give `Secs' deadline for the port program to clean up
@@ -157,7 +152,6 @@
 -type cmd_option()  ::
       monitor
     | sync
-    | link    
     | {executable, string()}
     | {cd, WorkDir::string()}
     | {env, [string() | {Name :: string(), Value :: string()}, ...]}
@@ -281,8 +275,7 @@
 %%-------------------------------------------------------------------------
 -spec start_link(exec_options()) -> {ok, pid()} | {error, any()}.
 start_link(Options) when is_list(Options) ->
-    % Debug = {debug, [trace, log, statistics, {log_to_file, "./execserver.log"}]},
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Options], []). % , [Debug]).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Options], []).
 
 %%-------------------------------------------------------------------------
 %% @equiv start_link/1
@@ -301,8 +294,6 @@ start(Options) when is_list(Options) ->
 %% @doc Run an external program. `OsPid' is the OS process identifier of
 %%      the new process. If `sync' is specified in `Options' the return
 %%      value is `{ok, Status}' where `Status' is OS process exit status.
-%%      The `Status` can be decoded with `status/1' to determine the
-%%      process's exit code and if it was killed by signal.
 %% @end
 %%-------------------------------------------------------------------------
 -spec run(cmd(), cmd_options()) ->
@@ -316,8 +307,6 @@ run(Exe, Options) when is_list(Exe), is_list(Options) ->
 %%      the calling process will be killed or if it's trapping exits,
 %%      it'll get {'EXIT', OsPid, Status} message.  If the calling process
 %%      dies the OsPid will be killed.
-%%      The `Status` can be decoded with `status/1' to determine the
-%%      process's exit code and if it was killed by signal.
 %% @end
 %%-------------------------------------------------------------------------
 -spec run_link(cmd(), cmd_options()) ->
@@ -395,12 +384,8 @@ stop_and_wait(Port, Timeout) when is_port(Port) ->
     stop_and_wait(OsPid, Timeout);
 
 stop_and_wait(OsPid, Timeout) when is_integer(OsPid) ->
-    case ets:lookup(exec_mon, OsPid) of
-    [{_, Pid}] ->
-        stop_and_wait(Pid, Timeout);
-    [] ->
-        {error, not_found}
-    end;
+    [{_, Pid}] = ets:lookup(exec_mon, OsPid),
+    stop_and_wait(Pid, Timeout);
 
 stop_and_wait(Pid, Timeout) when is_pid(Pid) ->
     gen_server:call(?MODULE, {port, {stop, Pid}}, Timeout),
@@ -439,16 +424,10 @@ pid(OsPid) when is_integer(OsPid) ->
 
 %%-------------------------------------------------------------------------
 %% @doc Send `Data' to stdin of the OS process identified by `OsPid'.
-%%
-%% Sending eof instead of binary Data causes close of stdin of the
-%% corresponding process. Data sent to closed stdin is ignored.
-%%
 %% @end
 %%-------------------------------------------------------------------------
--spec send(OsPid :: ospid() | pid(), binary() | 'eof') -> ok.
-send(OsPid, Data)
-  when (is_integer(OsPid) orelse is_pid(OsPid)),
-       (is_binary(Data)   orelse Data =:= eof) ->
+-spec send(OsPid :: ospid() | pid(), binary()) -> ok.
+send(OsPid, Data) when (is_integer(OsPid) orelse is_pid(OsPid)) andalso is_binary(Data) ->
     gen_server:call(?MODULE, {port, {send, OsPid, Data}}).
 
 %%-------------------------------------------------------------------------
@@ -520,7 +499,6 @@ signal(Num) when is_integer(Num) -> Num.
 default() -> 
     [{debug, 0},        % Debug mode of the port program. 
      {verbose, false},  % Verbose print of events on the Erlang side.
-     {root, false},     % Allow running processes as root.
      {args, ""},        % Extra arguments that can be passed to port program
      {alarm, 12},
      {user, ""},        % Run port program as this user
@@ -549,17 +527,14 @@ default(Option) ->
 %%-----------------------------------------------------------------------
 init([Options]) ->
     process_flag(trap_exit, true),
-    Opts0 = proplists:expand([{debug,   [{debug, 1}]},
-                              {root,    [{root, true}]},
-                              {verbose, [{verbose, true}]}], Options),
+    Opts0 = proplists:normalize(Options,
+                    [{expand, [{debug,   {debug, 1}},
+                               {verbose, {verbose, true}}]}]),
     Opts1 = [T || T = {O,_} <- Opts0, 
-                lists:member(O, [debug, verbose, root, args, alarm, user])],
+                lists:member(O, [debug, verbose, args, alarm, user])],
     Opts  = proplists:normalize(Opts1, [{aliases, [{args, ''}]}]),
     Args  = lists:foldl(
-        fun
-           (Opt, Acc) when is_atom(Opt) ->
-                [" -"++atom_to_list(Opt)++" " | Acc];
-           ({Opt, I}, Acc) when is_list(I), I =/= ""   ->
+        fun({Opt, I}, Acc) when is_list(I), I =/= ""   ->
                 [" -"++atom_to_list(Opt)++" "++I | Acc];
            ({Opt, I}, Acc) when is_integer(I) ->
                 [" -"++atom_to_list(Opt)++" "++integer_to_list(I) | Acc];
@@ -568,7 +543,6 @@ init([Options]) ->
     Exe   = proplists:get_value(portexe,     Options, default(portexe)) ++ lists:flatten([" -n"|Args]),
     Users = proplists:get_value(limit_users, Options, default(limit_users)),
     Debug = proplists:get_value(verbose,     Options, default(verbose)),
-    Root  = proplists:get_value(root,        Options, default(root)),
     Env   = case proplists:get_value(env, Options) of
             undefined -> [];
             Other     -> [{env, Other}]
@@ -578,7 +552,7 @@ init([Options]) ->
         PortOpts = Env ++ [binary, exit_status, {packet, 2}, nouse_stdio, hide],
         Port = erlang:open_port({spawn, Exe}, PortOpts),
         Tab  = ets:new(exec_mon, [protected,named_table]),
-        {ok, #state{port=Port, limit_users=Users, debug=Debug, registry=Tab, root=Root}}
+        {ok, #state{port=Port, limit_users=Users, debug=Debug, registry=Tab}}
     catch _:Reason ->
         {stop, ?FMT("Error starting port '~s': ~200p", [Exe, Reason])}
     end.
@@ -653,8 +627,6 @@ handle_info({Port, {data, Bin}}, #state{port=Port, debug=Debug} = State) ->
             [OsPid, if (((Status band 16#7F)+1) bsr 1) > 0 -> "signaled "; true -> "" end,
              (Status band 16#FF00 bsr 8), Status band 127]),
         notify_ospid_owner(OsPid, Status),
-        {noreply, State};
-    {0, ok} ->
         {noreply, State};
     {0, Ignore} ->
         error_logger:warning_msg("~w [~w] unknown msg: ~p\n", [self(), ?MODULE, Ignore]),
@@ -746,7 +718,9 @@ wait_for_ospid_exit(OsPid, Ref, OutAcc, ErrAcc) ->
     {'DOWN', Ref, process, _, noproc} ->
         {ok, sync_res(OutAcc, ErrAcc)};
     {'DOWN', Ref, process, _, {exit_status,_}=R} ->
-        {error, [R | sync_res(OutAcc, ErrAcc)]}
+        {error, [R | sync_res(OutAcc, ErrAcc)]};
+    Other ->
+        {error, [{reason, Other} | sync_res(OutAcc, ErrAcc)]}
     end.
 
 sync_res([], []) -> [];
@@ -891,14 +865,12 @@ is_port_command({stop, Pid}, _Pid, _State) when is_pid(Pid) ->
 is_port_command({{manage, OsPid, Options}, Link}, Pid, State) when is_integer(OsPid) ->
     {PortOpts, _Other} = check_cmd_options(Options, Pid, State, [], []),
     {ok, {manage, OsPid, PortOpts}, Link, []};
-is_port_command({send, Pid, Data}, _Pid, _State)
-  when is_pid(Pid), is_binary(Data) orelse Data =:= eof ->
+is_port_command({send, Pid, Data}, _Pid, _State) when is_pid(Pid), is_binary(Data) ->
     case ets:lookup(exec_mon, Pid) of
     [{Pid, OsPid}]  -> {ok, {stdin, OsPid, Data}};
     []              -> throw({error, no_process})
     end;
-is_port_command({send, OsPid, Data}, _Pid, _State)
-  when is_integer(OsPid), is_binary(Data) orelse Data =:= eof ->
+is_port_command({send, OsPid, Data}, _Pid, _State) when is_integer(OsPid), is_binary(Data) ->
     {ok, {stdin, OsPid, Data}};
 is_port_command({kill, OsPid, Sig}=T, _Pid, _State) when is_integer(OsPid),is_integer(Sig) -> 
     {ok, T, undefined, []};
@@ -1001,7 +973,7 @@ print(Stream, OsPid, Data) ->
 -define(receiveMatch(A, Timeout),
     (fun() ->
         receive
-            A -> true
+            _M -> ?assertMatch(A, _M)
         after Timeout ->
             ?assertMatch(A, timeout)
         end
@@ -1014,18 +986,17 @@ temp_file() ->
             false -> "/tmp";
             Path  -> Path
             end,
-    {I1, I2, I3}  = erlang:timestamp(),
+    {I1, I2, I3}  = now(),
     filename:join(Dir, io_lib:format("exec_temp_~w_~w_~w", [I1, I2, I3])).
 
 exec_test_() ->
     {setup,
-        fun()    -> {ok, Pid} = exec:start([{debug, 1}]), Pid end,
+        fun()    -> {ok, Pid} = exec:start([{debug, 3}]), Pid end,
         fun(Pid) -> exit(Pid, kill) end,
         [
             ?tt(test_monitor()),
             ?tt(test_sync()),
             ?tt(test_stdin()),
-            ?tt(test_stdin_eof()),
             ?tt(test_std(stdout)),
             ?tt(test_std(stderr)),
             ?tt(test_cmd()),
@@ -1044,22 +1015,12 @@ test_monitor() ->
 
 test_sync() ->
     ?assertMatch({ok, [{stdout, [<<"Test\n">>]}, {stderr, [<<"ERR\n">>]}]},
-        exec:run("echo Test; echo ERR 1>&2", [stdout, stderr, sync])),
-    ?assertMatch({ok,[{stdout,[<<"\n">>]}]},
-         exec:run(["/bin/echo", ""], [sync, stdout])).
-
+        exec:run("echo Test; echo ERR 1>&2", [stdout, stderr, sync])).
 
 test_stdin() ->
     {ok, P, I} = exec:run("read x; echo \"Got: $x\"", [stdin, stdout, monitor]),
     ok = exec:send(I, <<"Test data\n">>),
     ?receiveMatch({stdout,I,<<"Got: Test data\n">>}, 3000),
-    ?receiveMatch({'DOWN', _, process, P, normal}, 5000).
-
-test_stdin_eof() ->
-    {ok, P, I} = exec:run("tac", [stdin, stdout, monitor]),
-    [ok = exec:send(I, Data)
-     || Data <- [<<"foo\n">>, <<"bar\n">>, <<"baz\n">>, eof]],
-    ?receiveMatch({stdout,I,<<"baz\nbar\nfoo\n">>}, 3000),
     ?receiveMatch({'DOWN', _, process, P, normal}, 5000).
 
 test_std(Stream) ->
@@ -1104,7 +1065,7 @@ test_executable() ->
     ?assertMatch(
         [<<"Pid ", _/binary>>, <<" cannot execute '00kuku00': No such file or directory\n">>],
         begin
-            {error,[{exit_status,256},{stderr, [E]}]} =
+            {error, [{exit_status,_}, {stderr, [E]}]} =
                 exec:run("ls", [sync, {executable, "00kuku00"}, stdout, stderr]),
             binary:split(E, <<":">>)
         end),
