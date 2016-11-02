@@ -37,8 +37,8 @@
     t_start_tls_backend_noverify/1,
     t_start_tls_sample_noverify/1,
     t_register_lock_service/1,
-    t_pass_dbus_msg/1,
-    t_services_dbus_msg/1,
+    %t_pass_dbus_msg/1,
+    %t_services_dbus_msg/1,
     t_register_sota_service/1,
     t_call_lock_service/1,
     t_call_sota_service/1,
@@ -60,7 +60,7 @@ all() ->
     [
      {group, test_install},
      {group, test_run},
-     {group, test_run_dbus},
+     %{group, test_run_dbus},
      {group, test_run_tls},
      {group, test_run_tlsj},
      {group, test_run_tls_noverify},
@@ -324,30 +324,30 @@ t_register_lock_service(_Config) ->
     save({service, lock}, Pid),
     timer:sleep(2000).
 
-t_pass_dbus_msg(_Config) ->
-    {ok, C} = dbus:open(),
-    {ok, _Pid} = dbus_erlang:start(test),
-    service_edge_rpc:start_link(),
-    {ok, _Reply } = dbus_connection:call(C,
-                         [{interface,"org.erlang.DBus"},
-                          {member,"Call"},
-                          {path,"/"},
-                          {destination,"org.erlang.Rvi.test"}],
-                         "ss",
-                         ["service_edge_rpc", "get_available_services"]).
-
-t_services_dbus_msg(_Config) ->
-    {ok, C} = dbus:open(),
-    {ok, _Pid} = dbus_erlang:start(test),
-    service_edge_rpc:start_link(),
-    {ok, Reply } = dbus_connection:call(C,
-                         [{interface,"org.erlang.DBus"},
-                          {member,"Call"},
-                          {path,"/"},
-                          {destination,"org.erlang.Rvi.test"}],
-                         "ss",
-                         ["service_edge_rpc", "get_available_services"]),
-    lists:member("lock", Reply).  
+%t_pass_dbus_msg(_Config) ->
+%    {ok, C} = dbus:open(),
+%    {ok, _Pid} = dbus_erlang:start(test),
+%    service_edge_rpc:start_link(),
+%    {ok, _Reply } = dbus_connection:call(C,
+%                         [{interface,"org.erlang.DBus"},
+%                          {member,"Call"},
+%                          {path,"/"},
+%                          {destination,"org.erlang.Rvi.test"}],
+%                         "ss",
+%                         ["service_edge_rpc", "get_available_services"]).
+%
+%t_services_dbus_msg(_Config) ->
+%    {ok, C} = dbus:open(),
+%    {ok, _Pid} = dbus_erlang:start(test),
+%    service_edge_rpc:start_link(),
+%    {ok, Reply } = dbus_connection:call(C,
+%                         [{interface,"org.erlang.DBus"},
+%                          {member,"Call"},
+%                          {path,"/"},
+%                          {destination,"org.erlang.Rvi.test"}],
+%                         "ss",
+%                         ["service_edge_rpc", "get_available_services"]),
+%    lists:member("lock", Reply).  
 
 t_register_sota_service(_Config) ->
     Pid = start_json_rpc_server(9987),
