@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/aedlund1/rvi_core.svg?branch=aedlund1)](https://travis-ci.org/aedlund1/rvi_core)
+
 Copyright (C) 2014-2016 Jaguar Land Rover
 
 This document is licensed under Creative Commons
