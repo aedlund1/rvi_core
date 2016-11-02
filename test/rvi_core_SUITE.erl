@@ -101,14 +101,14 @@ groups() ->
        t_get_node_service_prefix,
        t_no_errors
       ]},
-     {test_run_dbus, [],
-      [
-       t_start_basic_backend,
-       t_start_basic_sample,
-       t_register_lock_service,
-       t_pass_dbus_msg,
-       t_services_dbus_msg
-      ]},
+     %{test_run_dbus, [],
+     % [
+     %  t_start_basic_backend,
+     %  t_start_basic_sample,
+     %  t_register_lock_service,
+     %  t_pass_dbus_msg,
+     %  t_services_dbus_msg
+     % ]},
      {test_run_tls, [],
       [
        t_start_tls_backend,
