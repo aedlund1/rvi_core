@@ -889,7 +889,6 @@ save_cmd(F, Cmd) ->
 cmd_(C0, Opts) ->
     C = binary_to_list(iolist_to_binary(C0)),
     CmdRes = exec:run(C, [sync, stdout, stderr] ++ Opts),
-    c:flush(),
     {Fmt, Args} =
 	case cmd_res(CmdRes) of
 	    {Out, "", []}  -> {"> ~s~n~s", [C, Out]};
